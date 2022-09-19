@@ -25,7 +25,7 @@ if __name__ == '__main__':
 	trajectory_list, motion_parameters_list = model.trajectory_generate()
 	
 	if args.mode == "video":
-		frame_trajectory_list, frame_motion_parameters_list = 			model.video_trajectory_interpolate_list(trajectory_list,motion_parameters_list)
+		frame_trajectory_list, frame_motion_parameters_list = model.video_trajectory_interpolate_list(trajectory_list,motion_parameters_list)
 	elif args.mode == "pictures":
 		frame_trajectory_list = model.picture_trajectory_list()
 	else:
