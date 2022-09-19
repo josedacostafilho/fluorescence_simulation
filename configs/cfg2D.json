@@ -1,0 +1,39 @@
+{
+    "output_dir" : "data/2D/",
+    
+    "resolution_SK" : [512,512],
+    "gaussian_mean" : 100,
+    "gaussian_std" : 3.4, 
+    "sigma" : [2,2],
+    "half_time" : 420,
+    "skew" : false,
+    "skew_step" : 2,
+    "SNR_list" : [1,2,5,10,15],
+       
+    "N_objects_start" : 50,
+    "N_frames" : 100,
+    "padding_initialization" : [50,50],
+    "padding_propagation" : [10,10],
+    "initial_occupancy" : 0.5,
+    "time_resolution" : 50,   
+    
+    "time_array" : "random",
+    "motion_routine" : "uniform",
+    "intensity_distribution" : "uniform",
+    "shapes" : "ellipsoids",
+    "ellipsoid_distribution" : "uniform",
+    "propagation_shape" : "static",
+    "propagation_intensity" : "constant",
+    
+    "trajectory_min_cut" : 2,  
+    "intensity_bounds" : [0.4,1],
+    "ellipsoid_dimensions_bounds" : [4,20],
+    "shape_rotation_max" : 10,
+    "point_source_diameter" : 4,
+    "binarize_threshold" : 0.1,  
+    "diffusion_constant_bounds" : [0,15000],
+    "alpha_bounds" : [0.8,1.2],
+    "directed_speed_bounds" : [0,100],
+    "directed_angles_bounds" : [0,360]
+    
+}
