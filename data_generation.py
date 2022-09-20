@@ -223,7 +223,7 @@ class Generate():
             if not hasattr(self.cfg,"intensity_gaussian"):
                 print("No intensity mean and variance given for Gaussian distribution. Default = [0.5,0.1]")
                 self.cfg.intensity_gaussian = [0.5,0.2]
-            intensity = np.random.gaussian(self.cfg.intensity_gaussian[0],self.cfg.intensity_gaussian[1])
+            intensity = np.random.normal(self.cfg.intensity_gaussian[0],self.cfg.intensity_gaussian[1])
             intensity = np.clip(intensity,0,1)
         elif self.cfg.intensity_distribution == "gmm":
             if not hasattr(self.cfg,"intensity_gmm"):
@@ -241,7 +241,7 @@ class Generate():
         if self.cfg.ellipsoid_distribution == "uniform":
             dimensions = np.random.randint(self.cfg.ellipsoid_dimensions_bounds[0], self.cfg.ellipsoid_dimensions_bounds[1], size=self.dim)
         elif self.cfg.ellipsoid_distribution == "gaussian":    
-            dimensions = np.random.gaussian(self.cfg.ellipsoid_dimensions_gaussian[0], self.cfg.ellipsoid_dimensions_gaussian[1], size=self.dim)
+            dimensions = np.random.normal(self.cfg.ellipsoid_dimensions_gaussian[0], self.cfg.ellipsoid_dimensions_gaussian[1], size=self.dim)
             dimensions = np.clip(dimensions,self.cfg.ellipsoid_dimensions_bounds[0], self.cfg.ellipsoid_dimensions_bounds[1])
         elif self.cfg.ellipsoid_distribution == "gmm":
             if not hasattr(self.cfg,"ellipsoid_dimensions_gmm"):
