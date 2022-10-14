@@ -167,13 +167,13 @@ def make_dataset(dir):
             # Add path to list.
             framesPath[index].append(os.path.join(clipsFolderPath, image))
     return framesPath       
-        
-def folder_SloMo(parent_dir, OG_dir, save_dir,frames_per_clip,train_ratio=0.9,initial_clip_idx=0):
+
+def folder_SloMo(parent_dir, load_dir, save_dir,frames_per_clip,train_ratio=0.9):
     """
-    Only for SuperSloMo.
+    Parent_dir: folder where load and save folders are located
     """
     
-    OG_dir = parent_dir + OG_dir
+    load_dir = parent_dir + load_dir
     save_dir = parent_dir + save_dir
     train_dir = save_dir + 'train/'
     val_dir = save_dir + 'validation/'
@@ -181,21 +181,53 @@ def folder_SloMo(parent_dir, OG_dir, save_dir,frames_per_clip,train_ratio=0.9,in
     make_dir(train_dir)
     make_dir(val_dir)
     
-    framesPath = make_dataset(OG_dir)
-    iii = initial_clip_idx
-    for i in range(len(framesPath)):
-        frames_in_this_folder = len(framesPath[i])
-        number_of_clips = frames_in_this_folder // frames_per_clip
-        for j in range(number_of_clips):
-            if np.random.uniform(0,1)<train_ratio:
-                clip_dir = train_dir+str(iii)+'/'
-            else:
-                clip_dir = val_dir+str(iii)+'/'
-            iii+=1
-            make_dir(clip_dir)
-            for k in range(frames_per_clip):
-                source = framesPath[i][j*frames_per_clip+k]
-                shutil.copy2(source,clip_dir)
+    clip_idx = 0
+    for _, folder in enumerate(os.listdir(load_dir)):
+        current_dir = os.path.join(load_dir, folder)        
+        framesPath = make_dataset(current_dir)
+        for i in range(len(framesPath)):
+            frames_in_this_folder = len(framesPath[i])
+            number_of_clips = frames_in_this_folder // frames_per_clip
+            for j in range(number_of_clips):
+                if np.random.uniform(0,1)<train_ratio:
+                    clip_dir = train_dir+str(clip_idx)+'/'
+                else:
+                    clip_dir = val_dir+str(clip_idx)+'/'
+                clip_idx += 1
+                make_dir(clip_dir)
+                for k in range(frames_per_clip):
+                    source = framesPath[i][j*frames_per_clip+k]
+                    shutil.copy2(source,clip_dir)
+    
+        
+# def folder_SloMo(parent_dir, OG_dir, save_dir,frames_per_clip,train_ratio=0.9,initial_clip_idx=0):
+#     """
+#     Only for SuperSloMo.
+#     """
+    
+#     OG_dir = parent_dir + OG_dir
+#     save_dir = parent_dir + save_dir
+#     train_dir = save_dir + 'train/'
+#     val_dir = save_dir + 'validation/'
+#     make_dir(save_dir)
+#     make_dir(train_dir)
+#     make_dir(val_dir)
+    
+#     framesPath = make_dataset(OG_dir)
+#     clip_idx = initial_clip_idx
+#     for i in range(len(framesPath)):
+#         frames_in_this_folder = len(framesPath[i])
+#         number_of_clips = frames_in_this_folder // frames_per_clip
+#         for j in range(number_of_clips):
+#             if np.random.uniform(0,1)<train_ratio:
+#                 clip_dir = train_dir+str(clip_idx)+'/'
+#             else:
+#                 clip_dir = val_dir+str(clip_idx)+'/'
+#             clip_idx += 1
+#             make_dir(clip_dir)
+#             for k in range(frames_per_clip):
+#                 source = framesPath[i][j*frames_per_clip+k]
+#                 shutil.copy2(source,clip_dir)
                 
 def add_motion_to_coords(coords_initial,displacement):
     """
@@ -244,7 +276,40 @@ def shape_propagation_rotate(shape_start,frame_trajectory,angles):
         shape.append(shape_current)
     return shape
 
+def read_flo_file(path):
+    with open(path, 'rb') as f:
+        magic = np.fromfile(f, np.float32, count=1)
+        assert (202021.25 == magic), 'Magic number incorrect. Invalid .flo file'
+        h = np.fromfile(f, np.int32, count=1)[0]
+        w = np.fromfile(f, np.int32, count=1)[0]
+        data = np.fromfile(f, np.float32, count=2 * w * h)
+    # Reshape data into 3D array (columns, rows, bands)
+    data2D = np.resize(data, (w, h, 2))
+    return data2D
 
+def write_flo_file(filename, flow):
+    """
+    write optical flow in Middlebury .flo format
+    :param flow: optical flow map
+    :param filename: optical flow file path to be saved
+    :return: None
+    """
+    f = open(filename, 'wb')
+    magic = np.array([202021.25], dtype=np.float32)
+    (height, width) = flow.shape[0:2]
+    w = np.array([width], dtype=np.int32)
+    h = np.array([height], dtype=np.int32)
+    magic.tofile(f)
+    w.tofile(f)
+    h.tofile(f)
+    flow.tofile(f)
+    f.close()     
+    
+def save_flow(filename, flow, extension):
+    if extension == '.tif':
+        tifffile.imsave(filename,flow)
+    elif extension == '.flo':
+        write_flo_file(filename, flow)
 
 
 
