@@ -322,19 +322,23 @@ class Generate():
         shape_list = self.shape_propagate(shape_list,frame_trajectory_list)
         return self.intensity_propagate(shape_list,frame_trajectory_list)       
     
-    def frame_deskew(self,frame):
+    def frame_deskew(self,frame,noise=False):
         """
         Deskews frames. Note that we first originate deskewed frames (by erasing the corners of the 3D volume),
         then afterwards we skew. So it's in the opposite order of what happens in real life.
         """
+        if noise==True:
+            offset = self.cfg.gaussian_mean
+        else:
+            offset = 0
         if self.dim!=3:
             return frame
         else:
             new_frame = np.copy(frame)
             step = self.cfg.skew_step
             for z in range(self.resolution[0]):
-                new_frame[z,:,:step*z] = 0
-                new_frame[z,:,step*z+int(self.cfg.resolution_SK[2]):]=0
+                new_frame[z,:,:step*z] = offset
+                new_frame[z,:,step*z+int(self.cfg.resolution_SK[2]):]=offset
             return new_frame
         
     def flow_deskew(self,flow):
@@ -429,18 +433,27 @@ class Generate():
         rOF: optical flow from current to previous frame.
         TO DO: optical flow only takes into account translation. Should be improved to consider rotation as well.
         """
+        if not hasattr(self.cfg,"optical_flow"):
+            self.cfg.optical_flow = True 
         if not hasattr(self.cfg,"binarize_threshold"):
-            self.cfg.binarize_threshold = 0.1        
+            self.cfg.binarize_threshold = 0.1 
+        if not hasattr(self.cfg,"flow_extension"):
+            self.cfg.flow_extension = '.flo'   
         with open(self.cfg.output_dir+'shape_list', 'wb') as f:
             pickle.dump(shape_list,f)
         N_objects = len(frame_trajectory_list)
         for n in range(self.cfg.N_frames): 
             start = time()
-            n_str = str(n).zfill(5)
+            n_str = str(n).zfill(4)
             frame_GT = np.zeros(self.resolution)
             frame_seg = np.zeros(self.resolution)
-            frame_OF = np.asarray([np.zeros(self.resolution) for i in range(self.dim)])
-            frame_rOF = np.asarray([np.zeros(self.resolution) for i in range(self.dim)])
+            GT_dir = self.cfg.output_dir + 'video_GT/'
+            seg_dir = self.cfg.output_dir + 'video_seg/'
+            if self.cfg.optical_flow == True:
+                frame_OF = np.asarray([np.zeros(self.resolution) for i in range(self.dim)])
+                frame_rOF = np.asarray([np.zeros(self.resolution) for i in range(self.dim)])
+                OF_dir = self.cfg.output_dir + 'video_OF/'
+                rOF_dir = self.cfg.output_dir + 'video_rOF/'            
             for i in range(N_objects):
                 if n in frame_trajectory_list[i][:,-1]:
                     t = np.where(frame_trajectory_list[i][:,-1]==n)[0][0]
@@ -459,53 +472,53 @@ class Generate():
                     new_object[coords] = 1
                     new_object = np.abs(oaconvolve(new_object,shape,mode='same'))
                     new_object_seg = binarize(new_object,self.cfg.binarize_threshold)
-                    new_object_GT = np.copy(new_object_seg)*np.max(shape)
-                    new_object_OF = np.asarray([new_object_seg*speed[i] for i in range(self.dim)])
-                    new_object_rOF = np.asarray([new_object_seg*speed_r[i] for i in range(self.dim)])
-                    frame_GT += new_object_GT
+                    new_object_GT  = np.copy(new_object_seg)*np.max(shape) #####################################
+                    frame_GT  += new_object_GT
                     frame_seg += new_object_seg
-                    frame_OF += new_object_OF
-                    frame_rOF += new_object_rOF
-            frame_GT = np.nan_to_num(frame_GT).astype('float32')
-            frame_seg = np.nan_to_num(frame_seg).astype('float32')
-            frame_OF  = np.nan_to_num(frame_OF).astype('float32')
-            frame_rOF = np.nan_to_num(frame_rOF).astype('float32')            
-            GT_dir = self.cfg.output_dir + 'video_GT/'
-            seg_dir = self.cfg.output_dir + 'video_seg/'
-            OF_dir = self.cfg.output_dir + 'video_OF/'
-            rOF_dir = self.cfg.output_dir + 'video_rOF/'
+                    if self.cfg.optical_flow == True:
+                        new_object_OF  = np.asarray([new_object_seg*np.flip(speed[i]) for i in range(self.dim)])
+                        new_object_rOF = np.asarray([new_object_seg*np.flip(speed_r[i]) for i in range(self.dim)])
+                        frame_OF  += new_object_OF
+                        frame_rOF += new_object_rOF
+            frame_GT  = np.nan_to_num(frame_GT).astype('float32')
+            frame_seg = np.nan_to_num(frame_seg).astype('float32')            
             make_dir(GT_dir)
             make_dir(seg_dir)
-            make_dir(OF_dir)
-            make_dir(rOF_dir)
+            if self.cfg.optical_flow == True:
+                frame_OF  = np.nan_to_num(frame_OF).astype('float32').transpose(1,2,0)
+                frame_rOF = np.nan_to_num(frame_rOF).astype('float32').transpose(1,2,0) 
+                make_dir(OF_dir)
+                make_dir(rOF_dir)
             if self.cfg.skew==True:
                 frame_GT  = self.frame_deskew(frame_GT)
                 frame_seg = self.frame_deskew(frame_seg)
-                frame_OF  = self.flow_deskew(frame_OF)
-                frame_rOF = self.flow_deskew(frame_rOF)
                 frame_GT_SK  = self.frame_skew(frame_GT)
-                frame_seg_SK = self.frame_skew(frame_seg)
-                frame_OF_SK  = self.flow_skew(frame_OF)
-                frame_rOF_SK = self.flow_skew(frame_rOF)    
-                tifffile.imwrite(GT_dir+'frame_'+n_str+'.tif',frame_GT_SK)
-                tifffile.imwrite(seg_dir+'frame_'+n_str+'.tif',frame_seg_SK)
-                tifffile.imwrite(OF_dir+'frame_'+n_str+'.tif',frame_OF_SK)
-                tifffile.imwrite(rOF_dir+'frame_'+n_str+'.tif',frame_rOF_SK)
-                GT_dir += 'DS/'
+                frame_seg_SK = self.frame_skew(frame_seg)  
+                tifffile.imwrite(GT_dir +'frame_'+n_str+'.tif',frame_GT_SK)
+                tifffile.imwrite(seg_dir+'frame_'+n_str+'.tif',frame_seg_SK)                
+                GT_dir  += 'DS/'
                 seg_dir += 'DS/'
-                OF_dir += 'DS/'
-                rOF_dir += 'DS/'
                 make_dir(GT_dir)
                 make_dir(seg_dir)
-                make_dir(OF_dir)
-                make_dir(rOF_dir)
-            tifffile.imwrite(GT_dir+'frame_'+n_str+'.tif',frame_GT)
+                if self.cfg.optical_flow == True:
+                    frame_OF  = self.flow_deskew(frame_OF)
+                    frame_rOF = self.flow_deskew(frame_rOF)
+                    frame_OF_SK  = self.flow_skew(frame_OF)
+                    frame_rOF_SK = self.flow_skew(frame_rOF) 
+                    save_flow(OF_dir +'frame_'+n_str+self.cfg.flow_extension,frame_OF_SK, self.cfg.flow_extension)
+                    save_flow(rOF_dir+'frame_'+n_str+self.cfg.flow_extension,frame_rOF_SK, self.cfg.flow_extension)
+                    OF_dir  += 'DS/'
+                    rOF_dir += 'DS/'
+                    make_dir(OF_dir)
+                    make_dir(rOF_dir)                   
+            tifffile.imwrite(GT_dir +'frame_'+n_str+'.tif',frame_GT)
             tifffile.imwrite(seg_dir+'frame_'+n_str+'.tif',frame_seg)
-            tifffile.imwrite(OF_dir+'frame_'+n_str+'.tif',frame_OF)
-            tifffile.imwrite(rOF_dir+'frame_'+n_str+'.tif',frame_rOF)
+            if self.cfg.optical_flow == True:
+                save_flow(OF_dir +'frame_'+n_str+self.cfg.flow_extension,frame_OF, self.cfg.flow_extension)
+                save_flow(rOF_dir+'frame_'+n_str+self.cfg.flow_extension,frame_rOF, self.cfg.flow_extension)
             if n==0:
                 total_time = (time()-start)*(self.cfg.N_frames-1)
-                print("Estimated remaining time = {} seconds ({} hours)".format(total_time,total_time/3600))
+                print("--- Estimated remaining time = {} seconds ({} hours)".format(total_time,total_time/3600))
             
     def frame_PSF_convolve(self,frame):
         """
@@ -589,7 +602,7 @@ class Generate():
             save_dir = self.cfg.output_dir + 'SNR_'+str(SNR)+'/'
             make_dir(save_dir)         
             if self.cfg.skew==True:
-                frame = self.frame_deskew(frame)
+                frame = self.frame_deskew(frame,noise=True)
                 frame_SK = self.frame_skew(frame)
                 tifffile.imwrite(save_dir+save_filename,frame_SK)
                 save_dir +='DS/'
@@ -606,13 +619,15 @@ class Generate():
     def video_RGB(self,video_dir):
         """
         Converts greyscale tiffs to RGB pngs (all 3 channels the same).
-        Used for SuperSloMo. Only for 2D.
+        Used for Optical flow models. Only for 2D.
         """
         load_dir = self.cfg.output_dir + video_dir
         if self.dim!=2:
             print('Conversion to RGB is for two dimensional data only!')
         else:
-            save_dir = self.cfg.output_dir + 'RGB_'+video_dir
+            rgb_dir = self.cfg.output_dir + 'RGB/'
+            save_dir = rgb_dir + video_dir
+            make_dir(rgb_dir)            
             make_dir(save_dir)
             global_max = []
             for filename in sorted(glob.glob(os.path.join(load_dir, '*.tif'))):
@@ -622,7 +637,7 @@ class Generate():
             for filename in sorted(glob.glob(os.path.join(load_dir, '*.tif'))):
                 save_filename = filename.replace(load_dir, '')
                 save_filename = save_filename.replace('.tif', '')
-                frame = tifffile.imread(filename)
+                frame = tifffile.imread(filename).astype('float')
                 frame = (frame*255/global_max)
                 frame = np.stack((frame,frame,frame),axis=2).astype('uint8')
                 image = Image.fromarray(frame)
@@ -634,6 +649,8 @@ class Generate():
         else:          
             for SNR in self.cfg.SNR_list:
                 self.video_RGB('SNR_'+str(SNR))
+        self.video_RGB('video_GT')                
+        self.video_RGB('video_PSF')
                   
     def video_skew(self,load_dir,save_dir):
         """
@@ -676,6 +693,6 @@ class Generate():
         global_max = np.asarray(global_max)
         return mean, std, global_max
     
-    
+
     
     
